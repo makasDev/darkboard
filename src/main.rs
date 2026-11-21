@@ -1,3 +1,7 @@
+// Hide the console window that Windows would otherwise attach to a release
+// build. Debug builds keep it for diagnostics.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
 mod canvas;
 mod document;

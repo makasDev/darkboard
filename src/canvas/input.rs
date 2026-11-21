@@ -19,6 +19,7 @@ pub struct FrameInput {
     pub primary_down: bool,
     pub middle_down: bool,
     pub space_down: bool,
+    pub shift_down: bool,
     pub pan_delta: Vec2,
     /// Multiplicative zoom for this frame (1.0 = no change).
     pub zoom_factor: f32,
@@ -31,7 +32,7 @@ pub fn read(ctx: &Context, over_canvas: bool) -> FrameInput {
     let mut pinch_factor = 1.0_f32;
     let mut lost_focus = false;
 
-    let (pointer, primary_pressed, primary_down, middle_down, space_down, pan_delta) =
+    let (pointer, primary_pressed, primary_down, middle_down, space_down, shift_down, pan_delta) =
         ctx.input(|input| {
             for event in &input.events {
                 match event {
@@ -55,6 +56,7 @@ pub fn read(ctx: &Context, over_canvas: bool) -> FrameInput {
                 input.pointer.primary_down(),
                 input.pointer.middle_down(),
                 input.key_down(egui::Key::Space),
+                input.modifiers.shift,
                 input.pointer.delta(),
             )
         });
@@ -70,6 +72,7 @@ pub fn read(ctx: &Context, over_canvas: bool) -> FrameInput {
         primary_down,
         middle_down,
         space_down,
+        shift_down,
         pan_delta,
         zoom_factor,
         lost_focus,

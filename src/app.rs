@@ -40,6 +40,8 @@ struct LiveStroke {
     raw: Vec<Pos2>,
     smoothed: Vec<Pos2>,
     width: f32,
+    /// World position where the press happened. Anchors a Shift straight line.
+    anchor: Pos2,
 }
 
 pub struct DarkboardApp {
@@ -204,11 +206,21 @@ impl DarkboardApp {
                             self.last_raw = Some(world);
                         }
                     }
-                    smoothing::smooth_into(&live.raw, step, &mut live.smoothed);
+
+                    if frame_input.shift_down {
+                        let end = live.raw.last().copied().unwrap_or(live.anchor);
+                        live.smoothed.clear();
+                        live.smoothed.push(live.anchor);
+                        if live.anchor.distance(end) > 1.0e-4 {
+                            live.smoothed.push(end);
+                        }
+                    } else {
+                        smoothing::smooth_into(&live.raw, step, &mut live.smoothed);
+                    }
                 }
 
                 if !frame_input.primary_down || frame_input.lost_focus {
-                    self.finish_stroke();
+                    self.finish_stroke(frame_input.shift_down);
                 }
             }
             Mode::Idle => {
@@ -220,6 +232,7 @@ impl DarkboardApp {
                         raw: vec![world],
                         smoothed: vec![world],
                         width: self.marker_width,
+                        anchor: world,
                     });
                     self.last_raw = Some(world);
                     self.mode = Mode::Drawing;
@@ -229,7 +242,7 @@ impl DarkboardApp {
         }
     }
 
-    fn finish_stroke(&mut self) {
+    fn finish_stroke(&mut self, shift: bool) {
         self.mode = Mode::Idle;
         self.last_raw = None;
 
@@ -237,13 +250,36 @@ impl DarkboardApp {
             return;
         };
 
-        let step = SMOOTH_STEP_PX / self.camera.zoom.max(0.001);
-        smoothing::smooth_into(&live.raw, step, &mut live.smoothed);
-        if live.smoothed.is_empty() {
-            live.smoothed = live.raw;
-        }
+        let width = live.width;
+        let points = if shift {
+            let end = live.raw.last().copied().unwrap_or(live.anchor);
+            let start = if live.raw.len() <= 1 {
+                // A Shift+click with no drag continues from the end of the last
+                // stroke, so a sequence of clicks draws connected segments.
+                self.document
+                    .strokes()
+                    .last()
+                    .and_then(|stroke| stroke.points().last().copied())
+                    .unwrap_or(live.anchor)
+            } else {
+                live.anchor
+            };
+            if start.distance(end) > 1.0e-4 {
+                vec![start, end]
+            } else {
+                vec![end]
+            }
+        } else {
+            let step = SMOOTH_STEP_PX / self.camera.zoom.max(0.001);
+            smoothing::smooth_into(&live.raw, step, &mut live.smoothed);
+            if live.smoothed.is_empty() {
+                live.raw
+            } else {
+                live.smoothed
+            }
+        };
 
-        let stroke = Stroke::new(live.smoothed, live.width);
+        let stroke = Stroke::new(points, width);
         if stroke.is_valid() {
             self.document.push(stroke);
             self.history.record_add();
@@ -280,7 +316,7 @@ impl DarkboardApp {
         painter.text(
             viewport.center(),
             egui::Align2::CENTER_CENTER,
-            "Draw with the left mouse button\nPan with middle-drag or Space+drag · Zoom with the wheel",
+            "Draw with the left mouse button\nPan with middle-drag or Space+drag · Zoom with the wheel\nHold Shift for a straight line · Shift+click continues from the last stroke",
             FontId::proportional(14.0),
             theme::TEXT_DIM,
         );
