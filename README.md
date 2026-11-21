@@ -104,9 +104,12 @@ rectangles is a few microseconds per frame, while a tree adds balancing and
 update costs on every edit. The linear scan stays until profiling shows it
 matters.
 
-## Verification
+## License
 
-```
+Released under the [PolyForm Noncommercial License 1.0.0](LICENSE): free to use,
+modify, and share for any noncommercial purpose. Commercial use is not permitted.
+
+## Verification
 cargo fmt --check
 cargo check
 cargo test          # 23 unit tests

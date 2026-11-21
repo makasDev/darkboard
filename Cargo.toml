@@ -4,7 +4,7 @@ version = "0.1.1"
 description = "A native infinite whiteboard in Rust: dark canvas, one smooth white marker."
 edition = "2024"
 repository = "https://github.com/makasDev/darkboard"
-license = "MIT"
+license-file = "LICENSE"
 
 [dependencies]
 eframe = "0.37.0"
