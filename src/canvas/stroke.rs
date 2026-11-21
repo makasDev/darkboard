@@ -2,7 +2,7 @@
 
 use egui::{Pos2, Rect};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Stroke {
     points: Vec<Pos2>,
     width: f32,

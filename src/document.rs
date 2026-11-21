@@ -28,6 +28,10 @@ impl Document {
         self.strokes.push(stroke);
     }
 
+    pub fn remove(&mut self, index: usize) -> Stroke {
+        self.strokes.remove(index)
+    }
+
     pub fn pop(&mut self) -> Option<Stroke> {
         self.strokes.pop()
     }
@@ -56,12 +60,14 @@ impl Document {
 enum UndoEdit {
     Add,
     Clear(Vec<Stroke>),
+    Erase(Vec<Stroke>),
 }
 
 /// Redo entries own the data needed to put something back.
 enum RedoEdit {
     Add(Stroke),
     Clear(Vec<Stroke>),
+    Erase(Vec<Stroke>),
 }
 
 #[derive(Default)]
@@ -94,6 +100,15 @@ impl History {
         self.redo.clear();
     }
 
+    /// Record an erase. The strokes must already have been removed from the document.
+    pub fn record_erase(&mut self, strokes: Vec<Stroke>) {
+        if strokes.is_empty() {
+            return;
+        }
+        self.undo.push(UndoEdit::Erase(strokes));
+        self.redo.clear();
+    }
+
     pub fn undo(&mut self, document: &mut Document) -> bool {
         let Some(edit) = self.undo.pop() else {
             return false;
@@ -113,6 +128,13 @@ impl History {
                 self.redo.push(RedoEdit::Clear(current));
                 true
             }
+            UndoEdit::Erase(strokes) => {
+                self.redo.push(RedoEdit::Erase(strokes.clone()));
+                for stroke in strokes {
+                    document.push(stroke);
+                }
+                true
+            }
         }
     }
 
@@ -130,6 +152,17 @@ impl History {
                 let current = document.take_all();
                 document.replace(strokes);
                 self.undo.push(UndoEdit::Clear(current));
+            }
+            RedoEdit::Erase(strokes) => {
+                let mut i = 0;
+                while i < document.len() {
+                    if strokes.iter().any(|r| r == &document.strokes()[i]) {
+                        document.remove(i);
+                    } else {
+                        i += 1;
+                    }
+                }
+                self.undo.push(UndoEdit::Erase(strokes));
             }
         }
         true

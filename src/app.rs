@@ -26,6 +26,8 @@ const AUTOSAVE_RETRY: Duration = Duration::from_secs(4);
 const MIN_POINT_DISTANCE_PX: f32 = 0.8;
 /// Spacing of the smoothed polyline in screen points.
 const SMOOTH_STEP_PX: f32 = 1.2;
+/// Screen-space radius of the eraser brush.
+const ERASER_RADIUS_PX: f32 = 14.0;
 /// How long a one-off notice stays on screen.
 const NOTICE_LIFETIME: Duration = Duration::from_secs(14);
 
@@ -34,6 +36,7 @@ enum Mode {
     Idle,
     Drawing,
     Panning,
+    Erasing,
 }
 
 struct LiveStroke {
@@ -53,6 +56,8 @@ pub struct DarkboardApp {
     mode: Mode,
     live: Option<LiveStroke>,
     last_raw: Option<Pos2>,
+
+    erasing: Vec<Stroke>,
 
     save_path: PathBuf,
     dirty: bool,
@@ -105,6 +110,7 @@ impl DarkboardApp {
             mode: Mode::Idle,
             live: None,
             last_raw: None,
+            erasing: Vec::new(),
             save_path,
             dirty: false,
             dirty_since: None,
@@ -185,6 +191,7 @@ impl DarkboardApp {
                 }
             }
             Mode::Drawing => {}
+            Mode::Erasing => {}
         }
     }
 
@@ -239,6 +246,44 @@ impl DarkboardApp {
                 }
             }
             Mode::Panning => {}
+            Mode::Erasing => {}
+        }
+    }
+
+    fn handle_erasing(&mut self, frame_input: &FrameInput, viewport: Rect, over_canvas: bool) {
+        match self.mode {
+            Mode::Erasing => {
+                if frame_input.right_down {
+                    if let Some(pointer) = frame_input.pointer {
+                        let world = self.camera.screen_to_world(pointer, viewport);
+                        let radius = ERASER_RADIUS_PX / self.camera.zoom.max(0.001);
+                        let mut i = 0;
+                        while i < self.document.len() {
+                            let bounds = self.document.strokes()[i].bounds().expand(radius);
+                            if bounds.contains(world) {
+                                let removed = self.document.remove(i);
+                                self.erasing.push(removed);
+                            } else {
+                                i += 1;
+                            }
+                        }
+                    }
+                } else {
+                    if !self.erasing.is_empty() {
+                        let removed = std::mem::take(&mut self.erasing);
+                        self.history.record_erase(removed);
+                        self.mark_dirty();
+                    }
+                    self.mode = Mode::Idle;
+                }
+            }
+            Mode::Idle => {
+                if frame_input.right_pressed && over_canvas {
+                    self.mode = Mode::Erasing;
+                    self.erasing.clear();
+                }
+            }
+            Mode::Drawing | Mode::Panning => {}
         }
     }
 
@@ -293,7 +338,20 @@ impl DarkboardApp {
         frame_input: &FrameInput,
         over_canvas: bool,
     ) {
-        if !over_canvas || matches!(self.mode, Mode::Panning) || frame_input.space_down {
+        if !over_canvas {
+            return;
+        }
+        if matches!(self.mode, Mode::Erasing) {
+            if let Some(pointer) = frame_input.pointer {
+                painter.circle_stroke(
+                    pointer,
+                    ERASER_RADIUS_PX,
+                    LineStroke::new(1.5, Color32::from_white_alpha(120)),
+                );
+            }
+            return;
+        }
+        if matches!(self.mode, Mode::Panning) || frame_input.space_down {
             return;
         }
         let Some(pointer) = frame_input.pointer else {
@@ -316,7 +374,7 @@ impl DarkboardApp {
         painter.text(
             viewport.center(),
             egui::Align2::CENTER_CENTER,
-            "Draw with the left mouse button\nPan with middle-drag or Space+drag · Zoom with the wheel\nHold Shift for a straight line · Shift+click continues from the last stroke",
+            "Draw with the left mouse button\nPan with middle-drag or Space+drag · Zoom with the wheel\nHold Shift for a straight line · Shift+click continues · Right-drag erases",
             FontId::proportional(14.0),
             theme::TEXT_DIM,
         );
@@ -434,6 +492,7 @@ impl eframe::App for DarkboardApp {
 
         self.handle_navigation(&frame_input, viewport);
         self.handle_drawing(&frame_input, viewport, over_canvas);
+        self.handle_erasing(&frame_input, viewport, over_canvas);
 
         let painter = ui.painter();
         painter.rect_filled(viewport, egui::CornerRadius::ZERO, theme::CANVAS_BG);
@@ -447,6 +506,8 @@ impl eframe::App for DarkboardApp {
 
         if matches!(self.mode, Mode::Panning) {
             ctx.set_cursor_icon(CursorIcon::Grabbing);
+        } else if matches!(self.mode, Mode::Erasing) {
+            ctx.set_cursor_icon(CursorIcon::Crosshair);
         } else if over_canvas {
             ctx.set_cursor_icon(if frame_input.space_down {
                 CursorIcon::Grab

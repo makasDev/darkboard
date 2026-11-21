@@ -18,6 +18,8 @@ pub struct FrameInput {
     pub primary_pressed: bool,
     pub primary_down: bool,
     pub middle_down: bool,
+    pub right_down: bool,
+    pub right_pressed: bool,
     pub space_down: bool,
     pub shift_down: bool,
     pub pan_delta: Vec2,
@@ -32,34 +34,45 @@ pub fn read(ctx: &Context, over_canvas: bool) -> FrameInput {
     let mut pinch_factor = 1.0_f32;
     let mut lost_focus = false;
 
-    let (pointer, primary_pressed, primary_down, middle_down, space_down, shift_down, pan_delta) =
-        ctx.input(|input| {
-            for event in &input.events {
-                match event {
-                    Event::MouseWheel { unit, delta, .. } => {
-                        let scale = match unit {
-                            MouseWheelUnit::Line => POINTS_PER_LINE,
-                            MouseWheelUnit::Point => 1.0,
-                            MouseWheelUnit::Page => POINTS_PER_PAGE,
-                        };
-                        wheel_points += delta.y * scale;
-                    }
-                    Event::Zoom(factor) => pinch_factor *= *factor,
-                    Event::WindowFocused(false) => lost_focus = true,
-                    _ => {}
+    let (
+        pointer,
+        primary_pressed,
+        primary_down,
+        middle_down,
+        right_down,
+        right_pressed,
+        space_down,
+        shift_down,
+        pan_delta,
+    ) = ctx.input(|input| {
+        for event in &input.events {
+            match event {
+                Event::MouseWheel { unit, delta, .. } => {
+                    let scale = match unit {
+                        MouseWheelUnit::Line => POINTS_PER_LINE,
+                        MouseWheelUnit::Point => 1.0,
+                        MouseWheelUnit::Page => POINTS_PER_PAGE,
+                    };
+                    wheel_points += delta.y * scale;
                 }
+                Event::Zoom(factor) => pinch_factor *= *factor,
+                Event::WindowFocused(false) => lost_focus = true,
+                _ => {}
             }
+        }
 
-            (
-                input.pointer.interact_pos(),
-                input.pointer.button_pressed(PointerButton::Primary),
-                input.pointer.primary_down(),
-                input.pointer.middle_down(),
-                input.key_down(egui::Key::Space),
-                input.modifiers.shift,
-                input.pointer.delta(),
-            )
-        });
+        (
+            input.pointer.interact_pos(),
+            input.pointer.button_pressed(PointerButton::Primary),
+            input.pointer.primary_down(),
+            input.pointer.middle_down(),
+            input.pointer.secondary_down(),
+            input.pointer.button_pressed(PointerButton::Secondary),
+            input.key_down(egui::Key::Space),
+            input.modifiers.shift,
+            input.pointer.delta(),
+        )
+    });
 
     let mut zoom_factor = pinch_factor * (wheel_points * WHEEL_ZOOM_SPEED).exp();
     if !zoom_factor.is_finite() || zoom_factor <= 0.0 {
@@ -71,6 +84,8 @@ pub fn read(ctx: &Context, over_canvas: bool) -> FrameInput {
         primary_pressed,
         primary_down,
         middle_down,
+        right_down,
+        right_pressed,
         space_down,
         shift_down,
         pan_delta,
