@@ -95,6 +95,7 @@ Released under the [PolyForm Noncommercial License 1.0.0](LICENSE): free to use,
 modify, and share for any noncommercial purpose. Commercial use is not permitted.
 
 ## Verification
+```
 cargo fmt --check
 cargo check
 cargo test          # 23 unit tests
