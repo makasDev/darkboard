@@ -12,21 +12,6 @@ with wgpu. No browser, no server, no accounts, no AI.
 cargo run --release
 ```
 
-### Windows "Unknown publisher" warning
-
-The executable is not code-signed, so Windows shows a publisher warning the
-first time it runs. Because the file was downloaded from the internet, Windows
-also attaches a "mark of the web" that keeps the prompt coming back. To clear
-it:
-
-```powershell
-Unblock-File .\darkboard.exe
-```
-
-or right-click the file -> Properties -> check "Unblock" -> OK. The release
-notes include the SHA-256 of the download so you can verify it. Removing the
-prompt for everyone requires a paid code-signing certificate.
-
 ## Controls
 
 | Action | Input |
